@@ -65,13 +65,13 @@ def create_cluster(n_nodes, port):
     # Start servers
     host = '127.0.0.1'
     redis = os.getenv('REDIS_INSTALL_PATH') + '/redis-server'
-    redisai = os.getenv('REDISAI_CPU_INSTALL_PATH') + '/redisai.so '
+    #redisai = os.getenv('REDISAI_CPU_INSTALL_PATH') + '/redisai.so '
     pids = []
 
     for i in range(n_nodes):
         l_port = port + i
-        cmd = redis + ' --port ' + str(l_port) + " --cluster-enabled yes --cluster-config-file "  + str(l_port) + ".conf --loadmodule " + \
-            redisai + " --protected-mode no --loglevel notice "
+        cmd = redis + ' --port ' + str(l_port) + " --cluster-enabled yes --cluster-config-file "  + str(l_port) + ".conf " + \
+            " --protected-mode no --loglevel notice "
         log_file = "--logfile "  + str(l_port) + ".log"
         cmd += log_file + ' '
         print(cmd)

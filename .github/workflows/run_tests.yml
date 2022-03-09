@@ -8,7 +8,7 @@ env:
   HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK: "ON"
   HOMEBREW_NO_GITHUB_API: "ON"
   HOMEBREW_NO_INSTALL_CLEANUP: "ON"
-  SSDB: "127.0.0.1:6379"
+  SSDB: "redis-1:6379,redis-2:6380,redis-3:6381"
   SMARTREDIS_TEST_CLUSTER: False
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04] # cannot test on macOS as docker isn't supported on Mac
-        compiler: [11] # intel compiler, and versions of GNU compiler
+        compiler: [9] # intel compiler, and versions of GNU compiler
         rai_v: [1.2.5] # verisons of RedisAI
         py_v: ['3.9.x'] # versions of Python
     env:
@@ -30,7 +30,7 @@ jobs:
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
-      redis:
+      redis-1:
         # Docker Hub image
         image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
 
@@ -44,6 +44,36 @@ jobs:
           # map port 6379 on service container to the host
           - 6379:6379
 
+      # Label used to access the service container
+      redis-2:
+        # Docker Hub image
+        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # map port 6379 on service container to the host
+          - 6380:6380
+
+      # Label used to access the service container
+      redis-3:
+        # Docker Hub image
+        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # map port 6379 on service container to the host
+          - 6381:6381
+
     steps:
 
       - name: Install GFortran Linux
@@ -55,7 +85,13 @@ jobs:
           sudo apt-get install -y gcc-${GCC_V} gfortran-${GCC_V} &&
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
           --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V} &&
-          sudo apt-get install -y cmake
+          sudo apt-get install redis-server
+
+      - name: Setup redis cluster
+        run: echo ${SSDB} && redis-cli --cluster create $(echo $SSDB | tr "," " ")
+
+      - name: cmake
+        run: sudo apt-get install -y cmake
 
       # download a copy of SmartRedis before running CI tests
       - uses: actions/checkout@v2
@@ -65,21 +101,20 @@ jobs:
           python-version: ${{ matrix.py_v }}
 
 
-
-      - name: Install Intel compiler
-        if: "contains( matrix.compiler, 'intel' )" # if using intel compiler
-        run: |
-          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
-          sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
-          rm GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
-          echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list &&
-          sudo apt-get update &&
-          sudo apt-get install intel-oneapi-compiler-fortran intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic
-          source /opt/intel/oneapi/setvars.sh &&
-          printenv >> $GITHUB_ENV &&
-          echo "CC=icc" >> $GITHUB_ENV &&
-          echo "CXX=icpc" >> $GITHUB_ENV &&
-          echo "FC=ifort" >> $GITHUB_ENV
+            #- name: Install Intel compiler
+            #  if: "contains( matrix.compiler, 'intel' )" # if using intel compiler
+            #  run: |
+            #    wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
+            #    sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
+            #    rm GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB &&
+            #    echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list &&
+            #    sudo apt-get update &&
+            #    sudo apt-get install intel-oneapi-compiler-fortran intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic
+            #    source /opt/intel/oneapi/setvars.sh &&
+            #    printenv >> $GITHUB_ENV &&
+            #    echo "CC=icc" >> $GITHUB_ENV &&
+            #    echo "CXX=icpc" >> $GITHUB_ENV &&
+            #    echo "FC=ifort" >> $GITHUB_ENV
 
           #- name: Install Cmake Linux
           #  if: contains(matrix.os, 'ubuntu')
