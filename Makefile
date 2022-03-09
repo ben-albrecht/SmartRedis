@@ -212,7 +212,7 @@ unit-test-cpp:
 # help: test-py                        - run python tests
 .PHONY: test-py
 test-py:
-	@PYTHONFAULTHANDLER=1 python -m pytest -vv ./tests/python/
+	@PYTHONFAULTHANDLER=1 python -m pytest -vv -s ./tests/python/
 
 # help: test-fortran                   - run fortran tests
 .PHONY: test-fortran

@@ -46,7 +46,7 @@ After installing dependencies and setting up your testing environment with
 
 .. code-block:: bash
 
-  ./setup_test_env.sh
+  . setup_test_env.sh
   make build-tests
 
 

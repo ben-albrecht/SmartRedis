@@ -26,64 +26,64 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-name: 'build_docker'
-
-on: [push, pull_request]
-
-jobs:
-    run_docker_build:
-        name: Build docker image on ${{ matrix.os }}, RedisAI ${{ matrix.rai_v }}
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: true
-            matrix:
-              os: [ubuntu-20.04] # cannot test on macOS as docker isn't supported on Mac
-              rai_v: [1.2.4, 1.2.5] # verisons of RedisAI
-
-        # Service containers to run with docker tests
-        services:
-          # Label used to access the service container
-          redis:
-            # Docker Hub image
-            image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
-            # Set health checks to wait until redis has started
-            options: >-
-              --health-cmd "redis-cli ping"
-              --health-interval 10s
-              --health-timeout 5s
-              --health-retries 5
-            ports:
-              # map port 6379 on service container to the host
-              - 6379:6379
-        steps:
-            - name: 'Checkout SmartRedis'
-              uses: actions/checkout@v2
-            - name: 'Build base SmartRedis docker image'
-              run: |
-                cd ./images
-                ./build.sh
-                cd ../
-            - name: 'Build C++ docker application'
-              run: |
-                cd ./tests/docker/cpp
-                docker build -t cpp_docker_test .
-                cd ../../../
-                docker run -d --env SSDB="redis:6379" cpp_docker_test
-            - name: 'Build C docker application'
-              run: |
-                cd ./tests/docker/c
-                docker build -t c_docker_test .
-                docker run -d --env SSDB="redis:6379" c_docker_test
-                cd ../../../
-            - name: 'Build Fortran docker application'
-              run: |
-                cd ./tests/docker/fortran
-                docker build -t fortran_docker_test .
-                docker run -d --env SSDB="redis:6379" fortran_docker_test
-                cd ../../../
-            - name: 'Build Python docker application'
-              run: |
-                cd ./tests/docker/python
-                docker build -t python_docker_test .
-                docker run -d --env SSDB="redis:6379" python_docker_test
-                cd ../../../
+#name: 'build_docker'
+#
+#on: [push, pull_request]
+#
+#jobs:
+#    run_docker_build:
+#        name: Build docker image on ${{ matrix.os }}, RedisAI ${{ matrix.rai_v }}
+#        runs-on: ${{ matrix.os }}
+#        strategy:
+#            fail-fast: true
+#            matrix:
+#              os: [ubuntu-20.04] # cannot test on macOS as docker isn't supported on Mac
+#              rai_v: [1.2.4, 1.2.5] # verisons of RedisAI
+#
+#        # Service containers to run with docker tests
+#        services:
+#          # Label used to access the service container
+#          redis:
+#            # Docker Hub image
+#            image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+#            # Set health checks to wait until redis has started
+#            options: >-
+#              --health-cmd "redis-cli ping"
+#              --health-interval 10s
+#              --health-timeout 5s
+#              --health-retries 5
+#            ports:
+#              # map port 6379 on service container to the host
+#              - 6379:6379
+#        steps:
+#            - name: 'Checkout SmartRedis'
+#              uses: actions/checkout@v2
+#            - name: 'Build base SmartRedis docker image'
+#              run: |
+#                cd ./images
+#                ./build.sh
+#                cd ../
+#            - name: 'Build C++ docker application'
+#              run: |
+#                cd ./tests/docker/cpp
+#                docker build -t cpp_docker_test .
+#                cd ../../../
+#                docker run -d --env SSDB="redis:6379" cpp_docker_test
+#            - name: 'Build C docker application'
+#              run: |
+#                cd ./tests/docker/c
+#                docker build -t c_docker_test .
+#                docker run -d --env SSDB="redis:6379" c_docker_test
+#                cd ../../../
+#            - name: 'Build Fortran docker application'
+#              run: |
+#                cd ./tests/docker/fortran
+#                docker build -t fortran_docker_test .
+#                docker run -d --env SSDB="redis:6379" fortran_docker_test
+#                cd ../../../
+#            - name: 'Build Python docker application'
+#              run: |
+#                cd ./tests/docker/python
+#                docker build -t python_docker_test .
+#                docker run -d --env SSDB="redis:6379" python_docker_test
+#                cd ../../../
