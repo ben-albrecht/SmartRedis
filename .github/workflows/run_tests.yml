@@ -13,6 +13,10 @@ env:
 
 jobs:
 
+
+  # docker run --rm --name redisai -v $PWD/redis.conf:/data/redis.conf --entrypoint
+  # "sh" redislabs/redisai:1.2.5-cpu-xenial -c "redis-server /data/redis.conf
+  # --loadmodule /usr/lib/redis/modules/r edisai.so"
   run_tests:
     name: Run smartredis tests using ${{ matrix.os }}, Python ${{ matrix.py_v }}, RedisAI ${{ matrix.rai_v }}, and compiler ${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
@@ -28,70 +32,75 @@ jobs:
       GCC_V: ${{ matrix.compiler }} # used when the compiler is gcc/gfortran
 
     # Service containers to run with `container-job`
-    services:
-      # Label used to access the service container
-      redis-1:
-        # Docker Hub image
-        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+    #services:
+    #  # Label used to access the service container
+    #  redis-1:
+    #    # Docker Hub image
+    #    image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
 
-        # Set health checks to wait until redis has started
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # map port 6379 on service container to the host
-          - 6379:6379
+    #    # Set health checks to wait until redis has started
+    #    options: >-
+    #      --entrypoint "sh"
+    #      -c "redis-server /data/redis.conf --loadmodule /usr/lib/redis/modules/redisai.so"
+    #      --health-cmd "redis-cli ping"
+    #      --health-interval 10s
+    #      --health-timeout 5s
+    #      --health-retries 5
 
-      # Label used to access the service container
-      redis-2:
-        # Docker Hub image
-        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+    #    # Copy cluster redis conf to default redis conf location
+    #    volumes:
+    #      - $PWD/redis.conf:/data/redis.conf
 
-        # Set health checks to wait until redis has started
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # map port 6379 on service container to the host
-          - 6380:6380
+    #    ports:
+    #      # map port 6379 on service container to the host
+    #      - 6379:6379
 
-      # Label used to access the service container
-      redis-3:
-        # Docker Hub image
-        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+    #  # Label used to access the service container
+      #      redis-2:
+      #        # Docker Hub image
+      #        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+      #
+      #        # Set health checks to wait until redis has started
+      #        options: >-
+      #          --entrypoint "redis-server --loadmodule /usr/lib/redis/modules/redisai.so /usr/local/etc/redis/redis.conf"
+      #          --health-cmd "redis-cli ping"
+      #          --health-interval 10s
+      #          --health-timeout 5s
+      #          --health-retries 5
+      #
+      #        # Copy cluster redis conf to default redis conf location
+      #        volumes:
+      #          - redis.conf:/usr/local/etc/redis/redis.conf
+      #
+      #        ports:
+      #          # map port 6379 on service container to the host
+      #          - 6380:6380
+      #
+      #      # Label used to access the service container
+      #      redis-3:
+      #        # Docker Hub image
+      #        image: redislabs/redisai:${{ matrix.rai_v }}-cpu-xenial
+      #
+      #        # Set health checks to wait until redis has started
+      #        options: >-
+      #          --entrypoint "redis-server --loadmodule /usr/lib/redis/modules/redisai.so /usr/local/etc/redis/redis.conf"
+      #          --health-cmd "redis-cli ping"
+      #          --health-interval 10s
+      #          --health-timeout 5s
+      #          --health-retries 5
+      #
+      #        # Copy cluster redis conf to default redis conf location
+      #        volumes:
+      #          - redis.conf:/usr/local/etc/redis/redis.conf
+      #
+      #        ports:
+      #          # map port 6379 on service container to the host
+      #          - 6381:6381
 
-        # Set health checks to wait until redis has started
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # map port 6379 on service container to the host
-          - 6381:6381
-
+    # Run all of steps inside of a container so that it is on the same network
+    # as service nodes rather than host
+    container: ubuntu:20.04
     steps:
-
-      - name: Install GFortran Linux
-        if: "!contains( matrix.compiler, 'intel' )" # if using GNU compiler
-        run: |
-          sudo apt-get update &&
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test &&
-          sudo apt-get update &&
-          sudo apt-get install -y gcc-${GCC_V} gfortran-${GCC_V} &&
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
-          --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V} &&
-          sudo apt-get install redis-server
-
-      - name: Setup redis cluster
-        run: echo ${SSDB} && redis-cli --cluster create $(echo $SSDB | tr "," " ")
-
-      - name: cmake
-        run: sudo apt-get install -y cmake
 
       # download a copy of SmartRedis before running CI tests
       - uses: actions/checkout@v2
@@ -99,6 +108,42 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_v }}
+
+      - name: Install utility software
+        run: |
+          apt update && \
+          apt-get -y install ca-certificates curl gnupg lsb-release software-properties-common redis-server iputils-ping && \
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+          apt-get update && apt-get -y install docker-ce docker-ce-cli containerd.io
+
+      # Note: github actions uses --label too
+      - name: Setup redis-servers
+        run: |
+          docker run --rm --name redis-1 --network ${{ job.container.network }} \
+          --network-alias redis-1 -p 6379:6379 -v $PWD/redis.conf:/data/redis.conf \
+          redislabs/redisai:1.2.5-cpu-xenial redis-server /data/redis.conf \
+          --loadmodule /usr/lib/redis/modules/redisai.so &
+
+
+      - name: Setup redis cluster
+        run: echo $(echo $SSDB | tr "," " ") && ping 172.19.0.2:6379 && redis-cli --cluster create $(echo $SSDB | tr "," " ")
+
+      - name: Install GFortran Linux
+        if: "!contains( matrix.compiler, 'intel' )" # if using GNU compiler
+        run: |
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test &&
+          apt update &&
+          apt install -y gcc-${GCC_V} gfortran-${GCC_V} &&
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
+          --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V}
+
+
+      - name: cmake
+        run: apt-get install -y cmake
+
 
 
             #- name: Install Intel compiler
