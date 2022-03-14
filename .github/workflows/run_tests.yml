@@ -1,6 +1,7 @@
 name: run_tests
 
-on: [push]
+# run tests only when code is merged into develop/master
+on: push
 
 env:
   HOMEBREW_NO_ANALYTICS: "ON" # Make Homebrew installation a little quicker
@@ -8,8 +9,11 @@ env:
   HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK: "ON"
   HOMEBREW_NO_GITHUB_API: "ON"
   HOMEBREW_NO_INSTALL_CLEANUP: "ON"
-  SSDB: "redis-1:6379,redis-2:6380,redis-3:6381"
-  SMARTREDIS_TEST_CLUSTER: False
+  SSDB: "127.0.0.1:7000,127.0.0.2:7001,127.0.0.3:7002"
+  SMARTREDIS_TEST_CLUSTER: True
+  TZ: "America/New_York" # for tzdata package
+  DEBIAN_FRONTEND: "noninteractive" # disable interactive installs
+
 
 jobs:
 
@@ -99,7 +103,7 @@ jobs:
 
     # Run all of steps inside of a container so that it is on the same network
     # as service nodes rather than host
-    container: ubuntu:20.04
+    #container: ubuntu:20.04
     steps:
 
       # download a copy of SmartRedis before running CI tests
@@ -111,38 +115,45 @@ jobs:
 
       - name: Install utility software
         run: |
-          apt update && \
-          apt-get -y install ca-certificates curl gnupg lsb-release software-properties-common redis-server iputils-ping && \
+          sudo apt update && sudo apt-get -y install curl gnupg lsb-release software-properties-common ca-certificates && \
+          # Add latest redis to apt sources
+          echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list && \
+          curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg && \
+          # Add latest docker to apt sources
+          echo  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-          apt-get update && apt-get -y install docker-ce docker-ce-cli containerd.io
+          sudo apt update && \
+          sudo apt-get -y install iputils-ping docker-ce docker-ce-cli containerd.io redis-server
 
-      # Note: github actions uses --label too
-      - name: Setup redis-servers
+      # Grab pre-built redisai.so
+      - name: Download redisai.so
         run: |
-          docker run --rm --name redis-1 --network ${{ job.container.network }} \
-          --network-alias redis-1 -p 6379:6379 -v $PWD/redis.conf:/data/redis.conf \
-          redislabs/redisai:1.2.5-cpu-xenial redis-server /data/redis.conf \
-          --loadmodule /usr/lib/redis/modules/redisai.so &
+          docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
+          docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME && ls -la $HOME
 
+          # - name: Start redis cluster
+          #   run:
 
-      - name: Setup redis cluster
-        run: echo $(echo $SSDB | tr "," " ") && ping 172.19.0.2:6379 && redis-cli --cluster create $(echo $SSDB | tr "," " ")
+          # docker run --rm --name redis-1 --network ${{ job.container.network }} \
+          # --network-alias redis-1 -p 6379:6379 -v $PWD/redis.conf:/data/redis.conf \
+          # redislabs/redisai:1.2.5-cpu-xenial redis-server /data/redis.conf \
+          # --loadmodule /usr/lib/redis/modules/redisai.so &
+
+          #- name: Setup redis cluster
+          #  run: echo $(echo $SSDB | tr "," " ") && ping 172.19.0.2:6379 &&
 
       - name: Install GFortran Linux
         if: "!contains( matrix.compiler, 'intel' )" # if using GNU compiler
         run: |
-          add-apt-repository -y ppa:ubuntu-toolchain-r/test &&
-          apt update &&
-          apt install -y gcc-${GCC_V} gfortran-${GCC_V} &&
-          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test &&
+          sudo apt update &&
+          sudo apt install -y gcc-${GCC_V} gfortran-${GCC_V} &&
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${GCC_V} 100 \
           --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-${GCC_V}
 
 
-      - name: cmake
-        run: apt-get install -y cmake
+      - name: Install CMake
+        run: sudo apt-get install -y cmake
 
 
 
@@ -170,8 +181,13 @@ jobs:
 
       - name: Build and run tests
         run: |
-            mkdir -p ./third-party &&
-            make test-py
+          redis-server --port 7000 --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --loadmodule $HOME/redisai.so &
+          redis-server --port 7001 --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --loadmodule $HOME/redisai.so &
+          redis-server --port 7002 --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --loadmodule $HOME/redisai.so &
+          sleep 10 && jobs &&
+          redis-cli --cluster create $(echo $SSDB | tr "," " ") --cluster-yes &&
+          mkdir -p ./third-party &&
+          make test-py
             #cd ./third-party &&
             #bash ../build-scripts/build-lcov.sh &&
             #bash ../build-scripts/build-catch.sh &&
