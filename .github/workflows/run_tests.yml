@@ -3,6 +3,7 @@ name: run_tests
 # run tests only when code is merged into develop/master
 on: push
 
+# envs
 env:
   HOMEBREW_NO_ANALYTICS: "ON" # Make Homebrew installation a little quicker
   HOMEBREW_NO_AUTO_UPDATE: "ON"
@@ -129,7 +130,10 @@ jobs:
       - name: Download redisai.so
         run: |
           docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
-          docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME && ls -la $HOME
+          docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME && 
+          sudo mkdir -p /usr/lib/redis/modules/backends &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /usr/lib/redis/modules/backends/ && 
+          ls -la $HOME && ls -la /usr/lib/redis/modules/backends/redisai_torch # debug output
 
           # - name: Start redis cluster
           #   run:
