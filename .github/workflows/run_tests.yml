@@ -130,11 +130,12 @@ jobs:
       - name: Download redisai.so
         run: |
           docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
-          docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME && 
+          docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME &&
           sudo mkdir -p /usr/lib/redis/modules/backends &&
-          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /usr/lib/redis/modules/backends/ && 
-          ls -la $HOME && ls -la /usr/lib/redis/modules/backends/redisai_torch # debug output
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /home/runner/backends/ &&
+          ls -la $HOME && ls -la /home/runner/backends # debug output
 
+          #/usr/lib/redis/modules/backends/ &&
           # - name: Start redis cluster
           #   run:
 
@@ -185,12 +186,16 @@ jobs:
 
       - name: Build and run tests
         run: |
-          redis-server --port 7000 --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --loadmodule $HOME/redisai.so &
-          redis-server --port 7001 --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --loadmodule $HOME/redisai.so &
-          redis-server --port 7002 --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --loadmodule $HOME/redisai.so &
-          sleep 10 && jobs &&
+          redis-server --port 7000 --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
+          redis-server --port 7001 --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
+          redis-server --port 7002 --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
+          # Give servers time to boot up
+          sleep 10 &&
           redis-cli --cluster create $(echo $SSDB | tr "," " ") --cluster-yes &&
+          # Check cluster is running
+          redis-cli --cluster info 127.0.0.1:7000 &&
           mkdir -p ./third-party &&
+          # Run tests
           make test-py
             #cd ./third-party &&
             #bash ../build-scripts/build-lcov.sh &&
