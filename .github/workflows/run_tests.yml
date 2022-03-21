@@ -10,7 +10,7 @@ env:
   HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK: "ON"
   HOMEBREW_NO_GITHUB_API: "ON"
   HOMEBREW_NO_INSTALL_CLEANUP: "ON"
-  SSDB: "127.0.0.1:7000,127.0.0.2:7001,127.0.0.3:7002"
+  SSDB: "127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002"
   SMARTREDIS_TEST_CLUSTER: True
   TZ: "America/New_York" # for tzdata package
   DEBIAN_FRONTEND: "noninteractive" # disable interactive installs
@@ -126,13 +126,14 @@ jobs:
           sudo apt update && \
           sudo apt-get -y install iputils-ping docker-ce docker-ce-cli containerd.io redis-server
 
-      # Grab pre-built redisai.so
+      # Grab pre-built redisai.so & backends
       - name: Download redisai.so
         run: |
           docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
           docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME &&
           sudo mkdir -p /usr/lib/redis/modules/backends &&
           sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /home/runner/backends/ &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /usr/lib/redis/modules/backends/ &&
           ls -la $HOME && ls -la /home/runner/backends # debug output
 
           #/usr/lib/redis/modules/backends/ &&
@@ -181,21 +182,27 @@ jobs:
           #  if: contains(matrix.os, 'ubuntu')
           #  run: sudo apt-get install cmake
 
+      - name: start redis servers
+        run: |
+          redis-server --port 7000 --daemonize yes --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
+          redis-server --port 7001 --daemonize yes --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
+          redis-server --port 7002 --daemonize yes --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
+
+      - name: ping redis servers
+        run: |
+          redis-cli -p 7000 ping &&
+          redis-cli -p 7001 ping &&
+          redis-cli -p 7002 ping
+
       - name: Build SmartRedis python and install
         run: python -m pip install -e .[dev]
 
+      - name: start redis cluster
+        run: redis-cli --cluster create $(echo $SSDB | tr "," " ") --cluster-yes
+
       - name: Build and run tests
         run: |
-          redis-server --port 7000 --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
-          redis-server --port 7001 --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
-          redis-server --port 7002 --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --cluster-node-timeout 300000 --loadmodule $HOME/redisai.so &
-          # Give servers time to boot up
-          sleep 10 &&
-          redis-cli --cluster create $(echo $SSDB | tr "," " ") --cluster-yes &&
-          # Check cluster is running
-          redis-cli --cluster info 127.0.0.1:7000 &&
           mkdir -p ./third-party &&
-          # Run tests
           make test-py
             #cd ./third-party &&
             #bash ../build-scripts/build-lcov.sh &&
