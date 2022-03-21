@@ -132,8 +132,8 @@ jobs:
           docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
           docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME &&
           sudo mkdir -p /usr/lib/redis/modules/backends &&
-          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /home/runner/backends/ &&
-          sudo docker cp redisai:/usr/lib/redis/modules/backends/redisai_torch /usr/lib/redis/modules/backends/ &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /home/runner/backends &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /usr/lib/redis/modules/backends &&
           ls -la $HOME && ls -la /home/runner/backends # debug output
 
           #/usr/lib/redis/modules/backends/ &&
