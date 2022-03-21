@@ -132,8 +132,9 @@ jobs:
           docker create --name redisai --rm redislabs/redisai:1.2.5-cpu-bionic && \
           docker cp redisai:/usr/lib/redis/modules/redisai.so $HOME &&
           sudo mkdir -p /usr/lib/redis/modules/backends &&
-          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /home/runner/backends &&
-          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /usr/lib/redis/modules/backends &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /home/runner/ &&
+          sudo mkdir -p /usr/lib/redis/modules/ &&
+          sudo docker cp redisai:/usr/lib/redis/modules/backends/ /usr/lib/redis/modules/ &&
           ls -la $HOME && ls -la /home/runner/backends # debug output
 
           #/usr/lib/redis/modules/backends/ &&
@@ -184,9 +185,9 @@ jobs:
 
       - name: start redis servers
         run: |
-          redis-server --port 7000 --daemonize yes --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
-          redis-server --port 7001 --daemonize yes --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
-          redis-server --port 7002 --daemonize yes --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so &
+          redis-server --port 7000 --daemonize yes --cluster-enabled yes --cluster-config-file 7000.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so TF /usr/lib/redis/modules/backends/redisai_tensorflow/redisai_tensorflow.so TORCH /usr/lib/redis/modules/backends/redisai_torch/redisai_torch.so  &
+          redis-server --port 7001 --daemonize yes --cluster-enabled yes --cluster-config-file 7001.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so TF /usr/lib/redis/modules/backends/redisai_tensorflow/redisai_tensorflow.so TORCH /usr/lib/redis/modules/backends/redisai_torch/redisai_torch.so  &
+          redis-server --port 7002 --daemonize yes --cluster-enabled yes --cluster-config-file 7002.conf --protected-mode no --cluster-node-timeout 30000 --loadmodule $HOME/redisai.so TF /usr/lib/redis/modules/backends/redisai_tensorflow/redisai_tensorflow.so TORCH /usr/lib/redis/modules/backends/redisai_torch/redisai_torch.so
 
       - name: ping redis servers
         run: |
