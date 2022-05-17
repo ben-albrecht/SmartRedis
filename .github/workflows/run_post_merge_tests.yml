@@ -2,11 +2,11 @@ name: run_post_merge_tests
 
 # This file is for tests that are to be run rarely, once on each merge.
 
-on:
-  push:
-    branches:
-      - master
-      - develop
+  #on:
+  #  push:
+  #    branches:
+  #      - master
+  #      - develop
 
 env:
   HOMEBREW_NO_ANALYTICS: "ON" # Make Homebrew installation a little quicker
