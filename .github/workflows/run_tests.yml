@@ -2,15 +2,15 @@ name: run_tests
 
 # This file is for tests that are to be run frequently, with each push to a PR.
 
-on:
-  push:
-    branches:
-      - master
-      - develop
-  pull_request:
-    branches:
-      - master
-      - develop
+on: [push]
+#  push:
+#    branches:
+#      - master
+#      - develop
+#  pull_request:
+#    branches:
+#      - master
+#      - develop
 
 env:
   HOMEBREW_NO_ANALYTICS: "ON" # Make Homebrew installation a little quicker
@@ -44,9 +44,6 @@ jobs:
       redis:
         # Docker Hub image
         image: redislabs/redisai:${{ matrix.rai_v }}-cpu-bionic
-        command: redis-server --unixsocket /tmp/docker/redis.sock --unixsocketperm 777
-
-        # redis-server /etc/redis.conf
 
         # Set health checks to wait until redis has started
         options: >-
@@ -54,9 +51,12 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --entrypoint "./redis-init.sh"
+          -v $(pwd):/data
         ports:
           # map port 6379 on service container to the host
           - 6379:6379
+
 
     steps:
       # download a copy of SmartRedis before running CI tests
